@@ -26,7 +26,12 @@ Four
 	Four.Two
 	Four.Three
 		Four.Three.One
-		Four.Three.Two
+			Four.Three.One.One
+				Four.Three.One.One.One
+					Four.Three.One.One.One.One
+					Four.Three.One.One.One.Two
+				Four.Three.One.One.Two
+				Four.Three.One.One.Three
 Five`, `├── One
 │   ├── One.One
 │   └── One.Two
@@ -40,8 +45,13 @@ Five`, `├── One
 │   ├── Four.One
 │   ├── Four.Two
 │   └── Four.Three
-│       ├── Four.Three.One
-│       └── Four.Three.Two
+│       └── Four.Three.One
+│           └── Four.Three.One.One
+│               ├── Four.Three.One.One.One
+│               │   ├── Four.Three.One.One.One.One
+│               │   └── Four.Three.One.One.One.Two
+│               ├── Four.Three.One.One.Two
+│               └── Four.Three.One.One.Three
 └── Five
 `},
 	} {
@@ -51,6 +61,7 @@ Five`, `├── One
 		result := w.String()
 
 		fmt.Println(result)
+		var _ = fmt.Println
 
 		if result != test.expected {
 			t.Errorf("Expected %s but got %s", test.expected, result)
