@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"flag"
 	"fmt"
 	"io"
 	"log"
@@ -11,12 +12,30 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
+var (
+	defaultOpen = false
+)
+
 func main() {
-	p := tea.NewProgram(initialModel())
+
+	flag.BoolVar(&defaultOpen, "open", false, "open all nodes by default")
+	flag.Parse()
+
+	// read from standard input
+	data, err := io.ReadAll(os.Stdin)
+	if err != nil {
+		log.Fatalf("failed to read from standard input: %v", err)
+	}
+
+	text := string(data)
+
+	p := tea.NewProgram(initialModel(text))
 	if _, err := p.Run(); err != nil {
 		fmt.Printf("Alas, there's been an error: %v", err)
 		os.Exit(1)
 	}
+	// remove the bubbletea output
+
 }
 
 type model struct {
@@ -37,37 +56,7 @@ func (m *model) NumVisibleNodes() int {
 	return len(m.visibleNodes)
 }
 
-func initialModel() *model {
-
-	text := `One
-	One.One
-	One.Two
-Two
-	Two.One
-		Two.One.One
-		Two.One.Two
-	Two.Two
-Three
-Four
-	Four.One
-	Four.Two
-	Four.Three
-		Four.Three.One
-			Four.Three.One.One
-				Four.Three.One.One.One
-					Four.Three.One.One.One.One
-					Four.Three.One.One.One.Two
-					Four.Three.One.One.One.Two
-					Four.Three.One.One.One.Two
-					Four.Three.One.One.One.Two
-					Four.Three.One.One.One.Two
-					Four.Three.One.One.One.Two
-					Four.Three.One.One.One.Two
-					Four.Three.One.One.One.Two
-				Four.Three.One.One.Two
-				Four.Three.One.One.Three
-Five`
-
+func initialModel(text string) *model {
 	return &model{
 		tree:         indentTree(text),
 		visibleNodes: []*node{},
@@ -81,24 +70,28 @@ func (m model) Init() tea.Cmd {
 // setup a logger looking at a file
 var (
 	logFile, _ = os.OpenFile("./logfile.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
-	logger     = log.New(logFile, "prefix: ", log.LstdFlags)
+	logger     = log.New(logFile, "", log.LstdFlags)
 )
 
 func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
-		case "ctrl+c", "q":
+		case "q", "ctrl+c":
+			m.tree = nil
 			return m, tea.Quit
-		case "up", "k", "ctrl+p":
+
+		case "k", "up", "ctrl+p":
 			if m.cursor > 0 {
 				m.cursor--
 			}
-		case "down", "j", "ctrl+n":
+
+		case "j", "down", "ctrl+n":
 			if m.cursor < m.NumVisibleNodes()-1 {
 				m.cursor++
 			}
-		case "left", "h":
+
+		case "h", "left":
 			node := m.VisibleNode(m.cursor)
 			if node == nil {
 				break
@@ -117,8 +110,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				node.parent.open = !node.parent.open
 			}
 
-		case "l", "tab":
-
+		case "l", "right", "tab":
 			node := m.VisibleNode(m.cursor)
 			if node == nil {
 				break
@@ -126,13 +118,16 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			node.open = !node.open
 
 		}
-		logger.Printf("cursor: %d", m.cursor)
 	}
 
 	return m, nil
 }
 
 func (m *model) View() string {
+
+	if m.tree == nil {
+		return ""
+	}
 
 	w := &strings.Builder{}
 
@@ -143,7 +138,7 @@ func (m *model) View() string {
 	printNodes = func(nodes []*node, prefix string) {
 		for i := 0; i < len(nodes); i++ {
 			n := nodes[i]
-			logger.Printf("woumi: %v\n", nodes[i])
+			// logger.Printf("woumi: %v\n", nodes[i])
 
 			lastChild := i == len(nodes)-1
 			hasChildren := len(n.children) > 0
@@ -184,10 +179,6 @@ func (m *model) View() string {
 	}
 	printNodes(m.tree, "")
 	m.visibleNodes = visibleNodes
-
-	for i, n := range m.visibleNodes {
-		logger.Printf("visibleNodes[%d]: %s", i, n.text)
-	}
 
 	return w.String()
 }
@@ -287,7 +278,11 @@ func indentTree(text string) []*node {
 
 func newNode(text string) *node {
 	indent := indentDepth(text, '	')
-	return &node{text: text[indent:], indent: indent}
+	return &node{
+		text:   text[indent:],
+		open:   defaultOpen,
+		indent: indent,
+	}
 }
 
 type node struct {
