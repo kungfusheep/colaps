@@ -13,12 +13,14 @@ import (
 )
 
 var (
-	defaultOpen = false
+	defaultOpen   bool
+	defaultFormat string
 )
 
 func main() {
 
 	flag.BoolVar(&defaultOpen, "open", false, "open all nodes by default")
+	flag.StringVar(&defaultFormat, "format", "tree", "format to use")
 	flag.Parse()
 
 	// read from standard input
@@ -34,8 +36,6 @@ func main() {
 		fmt.Printf("Alas, there's been an error: %v", err)
 		os.Exit(1)
 	}
-	// remove the bubbletea output
-
 }
 
 type model struct {
@@ -96,6 +96,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if node == nil {
 				break
 			}
+			logger.Printf("par: %v", node.parent.text)
 
 			if node.open && len(node.children) > 0 {
 				node.open = false
@@ -110,13 +111,19 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				node.parent.open = !node.parent.open
 			}
 
-		case "l", "right", "tab":
+		case "tab":
 			node := m.VisibleNode(m.cursor)
-			if node == nil {
+			if node == nil || len(node.children) == 0 {
 				break
 			}
 			node.open = !node.open
 
+		case "l", "right":
+			node := m.VisibleNode(m.cursor)
+			if node == nil {
+				break
+			}
+			node.open = len(node.children) > 0
 		}
 	}
 
@@ -129,6 +136,18 @@ func (m *model) View() string {
 		return ""
 	}
 
+	switch defaultFormat {
+	case "tree":
+		return treeView(m)
+	case "folder":
+		return folderView(m)
+	}
+
+	return "No style found"
+}
+
+// treeView returns a string representation of the tree for rendering
+func treeView(m *model) string {
 	w := &strings.Builder{}
 
 	lines := 0
@@ -138,8 +157,6 @@ func (m *model) View() string {
 	printNodes = func(nodes []*node, prefix string) {
 		for i := 0; i < len(nodes); i++ {
 			n := nodes[i]
-			// logger.Printf("woumi: %v\n", nodes[i])
-
 			lastChild := i == len(nodes)-1
 			hasChildren := len(n.children) > 0
 
@@ -183,6 +200,57 @@ func (m *model) View() string {
 	return w.String()
 }
 
+// folderView returns a string representation of a typical folder structure
+func folderView(m *model) string {
+	w := &strings.Builder{}
+
+	lines := 0
+	visibleNodes := m.visibleNodes[:0]
+
+	var printNodes func([]*node, string)
+	printNodes = func(nodes []*node, prefix string) {
+		for i := 0; i < len(nodes); i++ {
+			n := nodes[i]
+			hasChildren := len(n.children) > 0
+
+			childBar := "" // give us the ability to remove the bar
+			var runes string
+
+			if n.open {
+				runes = "▾"
+			} else if hasChildren {
+				runes = "▸"
+			} else {
+				runes = " "
+			}
+
+			var text string
+			if lines == m.cursor {
+				text = colorGreen(n.text)
+			} else {
+				text = colorWhite(n.text)
+			}
+
+			count := ""
+			if !n.open && len(n.children) > 0 {
+				count = fmt.Sprintf(" (%v)", len(n.children))
+			}
+
+			fmt.Fprintf(w, "%s%s%s%v\n", prefix, runes+" ", text, count) // print node
+			lines++
+			visibleNodes = append(visibleNodes, n)
+
+			if n.open {
+				printNodes(n.children, prefix+childBar+"   ") // print children
+			}
+
+		}
+	}
+	printNodes(m.tree, "")
+	m.visibleNodes = visibleNodes
+
+	return w.String()
+}
 func colorWhite(s string) string {
 	return fmt.Sprintf("\x1b[97m%s\x1b[0m", s)
 }
