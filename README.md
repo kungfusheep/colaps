@@ -1,6 +1,12 @@
 ## Overview
 This command-line tool reads a tab-indented list from stdin and displays it as a collapsible tree in your terminal. You can move the cursor to different items and expand or collapse their children.
 
+## install 
+
+```bash
+go install github.com/kungfusheep/colaps@latest
+```
+
 ## Usage
 1. Pipe any tab-indented text into the program:
    ```bash
